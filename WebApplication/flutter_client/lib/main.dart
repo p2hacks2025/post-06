@@ -10,7 +10,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 late List<CameraDescription> cameras;
 
 // FastAPI を 8001 で起動する前提
-const String baseUrl = "http://localhost:8001";
+const String baseUrl = "http://192.168.11.8:8000"; //"http://自分のPCのIP:8001"
 
 //固定キーの定義（QRコード）
 const String unlockKey = "OnionSalmon2025";
