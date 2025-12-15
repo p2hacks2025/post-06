@@ -7,6 +7,9 @@ import 'package:http/http.dart' as http;
 
 late List<CameraDescription> cameras;
 
+// ★ FastAPIを8001で起動する前提で統一
+const String baseUrl = "http://localhost:8001";
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   cameras = await availableCameras();
@@ -38,20 +41,22 @@ class _CameraPageState extends State<CameraPage> {
   bool _taking = false;
   int _count = 0;
   static const int _goal = 25;
-  final String baseUrl = "http://127.0.0.1:8000";
 
   @override
   void initState() {
     super.initState();
+
     _controller = CameraController(
       cameras.first,
       ResolutionPreset.medium,
       enableAudio: false,
     );
+
     _controller.initialize().then((_) {
       if (!mounted) return;
       setState(() => _initialized = true);
     });
+
     fetchCount();
   }
 
@@ -66,10 +71,8 @@ class _CameraPageState extends State<CameraPage> {
 
         if (!mounted) return;
 
-        // カウント更新
         setState(() => _count = c);
 
-        // 25枚以上なら常に準備中画面へ
         if (c >= _goal) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const EmptyPage()),
@@ -78,7 +81,7 @@ class _CameraPageState extends State<CameraPage> {
         }
       }
     } catch (_) {
-      // 通信失敗時は何もしない（撮影不能にしないため）
+      // 通信失敗時は何もしない
     }
   }
 
@@ -97,14 +100,12 @@ class _CameraPageState extends State<CameraPage> {
       final Uint8List bytes = await file.readAsBytes();
       if (!mounted) return;
 
-      // PreviewPage から戻ったら saved を受け取る
       final bool? saved = await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (_) => PreviewPage(imageBytes: bytes)),
       );
 
       if (!mounted) return;
 
-      // 保存成功なら枚数を更新
       if (saved == true) {
         await fetchCount();
       }
@@ -164,9 +165,6 @@ class _PreviewPageState extends State<PreviewPage> {
   bool _uploading = false;
   String _message = "";
 
-  // Flutter Web + FastAPI（同じPC）
-  final String baseUrl = "http://127.0.0.1:8000";
-
   Future<void> uploadToFastApi() async {
     setState(() {
       _uploading = true;
@@ -188,7 +186,6 @@ class _PreviewPageState extends State<PreviewPage> {
       final res = await http.Response.fromStream(streamed);
 
       if (res.statusCode == 200) {
-        // 成功したらカメラ画面へ戻る
         if (!mounted) return;
 
         final data = jsonDecode(res.body);
@@ -198,19 +195,24 @@ class _PreviewPageState extends State<PreviewPage> {
           context,
         ).showSnackBar(const SnackBar(content: Text("保存しました！")));
 
-        await Future.delayed(const Duration(milliseconds: 500));
+        await Future.delayed(const Duration(milliseconds: 300));
         if (!mounted) return;
 
         if (count >= 25) {
-          // 25枚以上なら「何もない画面」へ
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const EmptyPage()),
             (route) => false,
           );
         } else {
-          // まだならカメラへ戻る
           Navigator.of(context).pop(true);
         }
+      } else if (res.statusCode == 409) {
+        // 25枚到達（サーバー側制限）
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const EmptyPage()),
+          (route) => false,
+        );
       } else {
         setState(() => _message = "失敗: ${res.statusCode}\n${res.body}");
       }

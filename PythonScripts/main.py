@@ -1,22 +1,25 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-import uuid
-
 from sqlalchemy import create_engine, text
 
-# ===== FastAPI =====
+print("### MY FASTAPI RUNNING ###")  # 起動ログに出るか必ず確認
+
 app = FastAPI()
 
+# ★ localhost と 127.0.0.1 の「どっちのOriginでも」許可する（Flutter Web対策）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ===== MySQL =====
+# ★ プリフライト(OPTIONS)を明示的に通す
+@app.options("/upload")
+def options_upload():
+    return Response(status_code=204)
+
 DATABASE_URL = "mysql+pymysql://flutter_user:root@localhost:3306/flutter_db"
 
 engine = create_engine(
@@ -25,51 +28,49 @@ engine = create_engine(
     echo=True,
 )
 
-# ===== Upload dir =====
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
-
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
-# ===== APIs =====
+GOAL = 25
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-@app.post("/upload")
-async def upload_image(file: UploadFile = File(...)):
-    suffix = Path(file.filename).suffix.lower()
-    if suffix not in [".jpg", ".jpeg", ".png", ".webp"]:
-        suffix = ".jpg"
-
-    save_name = f"{uuid.uuid4().hex}{suffix}"
-    save_path = UPLOAD_DIR / save_name
-
-    data = await file.read()
-    save_path.write_bytes(data)
-
-    url = f"/uploads/{save_name}"
-
-    # MySQL に保存
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                "INSERT INTO photos (filename, url) VALUES (:filename, :url)"
-            ),
-            {"filename": save_name, "url": url},
-        )
-
-        #　今の保存枚数を取得(件数を必ず取る)
-        count = conn.execute(
-            text("SELECT COUNT(*) AS count FROM photos")
-        ).mappings().first()["count"]
-
-    return {"ok": True, "filename": save_name, "url": url, "count": int(count)}
-
-# 枚数取得API
 @app.get("/photos/count")
 def photos_count():
-    with engine.connect() as conn:
-        cnt = conn.execute(text("SELECT COUNT(*) AS cnt FROM photos")).mappings().first()["cnt"]
-    return {"ok": True, "count": cnt}
+    with engine.begin() as conn:
+        cnt = conn.execute(text("SELECT COUNT(*) FROM photos")).scalar()
+    return {"ok": True, "count": int(cnt or 0)}
+
+@app.post("/upload")
+async def upload_image(file: UploadFile = File(...)):
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="empty file")
+
+    content_type = file.content_type or "application/octet-stream"
+
+    with engine.begin() as conn:
+        cnt = int(conn.execute(text("SELECT COUNT(*) FROM photos")).scalar() or 0)
+        if cnt >= GOAL:
+            raise HTTPException(status_code=409, detail=f"limit reached: {GOAL}")
+
+        conn.execute(
+            text("INSERT INTO photos (image, content_type) VALUES (:img, :ct)"),
+            {"img": data, "ct": content_type},
+        )
+
+        new_cnt = int(conn.execute(text("SELECT COUNT(*) FROM photos")).scalar() or 0)
+
+    return {"ok": True, "count": new_cnt}
+
+@app.on_event("startup")
+def init_db():
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS photos (
+              id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+              image LONGBLOB NOT NULL,
+              content_type VARCHAR(64) NOT NULL,
+              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              PRIMARY KEY (id)
+            )
+        """))
