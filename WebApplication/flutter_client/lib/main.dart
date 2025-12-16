@@ -1,9 +1,6 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'app.dart';
 
 late List<CameraDescription> cameras;
 
@@ -15,7 +12,6 @@ Future<void> main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
