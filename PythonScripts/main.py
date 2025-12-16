@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Response, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response as FastAPIResponse
+from pathlib import Path
 from sqlalchemy import create_engine, text
 
 print("### MY FASTAPI RUNNING ###")
@@ -35,7 +36,6 @@ FREE_FIRST = 1                 # 最初の1枚はノーカウント
 LIMIT_PER_TITLE = GOAL + FREE_FIRST  # DB保存上限（=11）
 
 def calc_remaining(total_saved: int) -> int:
-    # total_saved: DBに保存されている枚数（最初の1枚も含む）
     counted = max(0, total_saved - FREE_FIRST)  # 2枚目以降だけ数える
     return max(0, GOAL - counted)
 
@@ -43,7 +43,7 @@ def calc_remaining(total_saved: int) -> int:
 def health():
     return {"status": "ok"}
 
-# 最初の写真を返す
+# 最初の写真（画像）を返す
 @app.get("/photos/first")
 def get_first_photo(title: str):
     with engine.begin() as conn:
@@ -64,7 +64,37 @@ def get_first_photo(title: str):
     image, content_type = row
     return FastAPIResponse(content=image, media_type=content_type)
 
-# ★ titleごとの枚数と残りを返す
+# ★ 最初の写真の情報（created_at）を返す：ロック画面の「XX日」表示用
+@app.get("/photos/first_info")
+def get_first_photo_info(title: str):
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("""
+                SELECT id, created_at
+                FROM photos
+                WHERE page_title = :t
+                ORDER BY id ASC
+                LIMIT 1
+            """),
+            {"t": title},
+        ).first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="no photo")
+
+    photo_id, created_at = row
+
+    # Flutter側で DateTime.parse しやすいように文字列化
+    created_at_str = created_at.isoformat(sep=" ") if hasattr(created_at, "isoformat") else str(created_at)
+
+    return {
+        "ok": True,
+        "title": title,
+        "photo_id": int(photo_id),
+        "created_at": created_at_str,  # 例: "2025-12-16 20:15:03"
+    }
+
+# titleごとの枚数と残りを返す
 @app.get("/photos/count")
 def photos_count(title: str):
     with engine.begin() as conn:
@@ -77,7 +107,7 @@ def photos_count(title: str):
     remaining = calc_remaining(total)
     return {"ok": True, "title": title, "count": total, "remaining": remaining}
 
-# ★ titleごとに保存（comment も一緒に保存）
+# titleごとに保存（comment も一緒に保存）
 @app.post("/upload")
 async def upload_image(
     title: str = Form(...),
@@ -135,7 +165,7 @@ def photo_ids(title: str):
 
     return {"ok": True, "title": title, "ids": [int(r[0]) for r in rows]}
 
-# ★ アルバム表示用：id と comment をまとめて返す
+# アルバム表示用：id と comment をまとめて返す
 @app.get("/photos/list")
 def photo_list(title: str):
     with engine.begin() as conn:
@@ -172,7 +202,7 @@ def get_photo(photo_id: int):
     image, content_type = row
     return FastAPIResponse(content=image, media_type=content_type)
 
-# ★ コメントだけ後から更新したい場合（任意）
+# コメントだけ後から更新したい場合（任意）
 @app.post("/photos/{photo_id}/comment")
 def set_photo_comment(photo_id: int, comment: str = Form("")):
     comment = (comment or "").strip()
@@ -223,7 +253,6 @@ def set_site_title(title: str = Form(...)):
 @app.on_event("startup")
 def init_db():
     with engine.begin() as conn:
-        # photos
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS photos (
               id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -237,13 +266,12 @@ def init_db():
             )
         """))
 
-        # 既存テーブルが古くて comment 列が無い場合に備えて追加（失敗しても無視）
+        # 既存テーブルが古い場合の互換
         try:
             conn.execute(text("ALTER TABLE photos ADD COLUMN comment TEXT NULL"))
         except Exception:
             pass
 
-        # site_state
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS site_state (
               id TINYINT UNSIGNED NOT NULL,
