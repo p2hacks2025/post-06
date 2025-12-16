@@ -9,65 +9,90 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 
 late List<CameraDescription> cameras;
 
-// FastAPI を 8001 で起動する前提
+// FastAPI
 const String baseUrl = "http://localhost:8001";
 
-//固定キーの定義（QRコード）
+// QR unlock key
 const String unlockKey = "OnionSalmon2025";
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   cameras = await availableCameras();
   runApp(const MyApp());
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
   Future<String?> _loadTitle() async {
-    final uri = Uri.parse("$baseUrl/site/title");
-    final res = await http.get(uri);
+    final prefs = await SharedPreferences.getInstance();
+    final t = prefs.getString("page_title");
+    if (t == null || t.trim().isEmpty) return null;
+    return t;
+  }
 
-    if (res.statusCode != 200) return null;
-
-    final data = jsonDecode(res.body);
-    if (data["exists"] != true) return null;
-
-    return data["title"] as String;
+  Future<int> _fetchRemaining(String title) async {
+    try {
+      final uri = Uri.parse(
+        "$baseUrl/photos/count?title=${Uri.encodeComponent(title)}",
+      );
+      final res = await http.get(uri);
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        return (data["remaining"] as num).toInt();
+      }
+    } catch (_) {}
+    return 999;
   }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String?>(
       future: _loadTitle(),
-      builder: (context, snapshot) {
-        final title = snapshot.data;
-
-        // 取得中は簡易ローディング
-        if (snapshot.connectionState != ConnectionState.done) {
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
           return const MaterialApp(
             debugShowCheckedModeBanner: false,
             home: Scaffold(body: Center(child: CircularProgressIndicator())),
           );
         }
 
-        // タイトルが保存済みならカメラから開始
-        final Widget home = (title != null)
-            ? CameraPage(pageTitle: title)
-            : const TitleInputPage();
+        final title = snap.data;
+        if (title == null) {
+          return const MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: TitleInputPage(),
+          );
+        }
 
-        return MaterialApp(debugShowCheckedModeBanner: false, home: home);
+        return FutureBuilder<int>(
+          future: _fetchRemaining(title),
+          builder: (context, snap2) {
+            if (snap2.connectionState != ConnectionState.done) {
+              return const MaterialApp(
+                debugShowCheckedModeBanner: false,
+                home: Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                ),
+              );
+            }
+
+            final remaining = snap2.data ?? 999;
+            final Widget home = (remaining <= 0)
+                ? LockPage(pageTitle: title)
+                : CameraPage(pageTitle: title);
+
+            return MaterialApp(debugShowCheckedModeBanner: false, home: home);
+          },
+        );
       },
     );
   }
 }
 
-/// ① 起動時：タイトル入力画面
+/// =====================
+/// Title Input
+/// =====================
 class TitleInputPage extends StatefulWidget {
   const TitleInputPage({super.key});
 
@@ -78,40 +103,66 @@ class TitleInputPage extends StatefulWidget {
 class _TitleInputPageState extends State<TitleInputPage> {
   final _controller = TextEditingController();
   String? _error;
+  bool _saving = false;
 
-  Future<void> _goCamera() async {
+  Future<void> _goNext() async {
     final title = _controller.text.trim();
     if (title.isEmpty) {
       setState(() => _error = "タイトルを入力してください");
       return;
     }
 
-    final uri = Uri.parse("$baseUrl/site/title");
-    await http.post(uri, body: {"title": title});
+    setState(() {
+      _error = null;
+      _saving = true;
+    });
 
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => CameraPage(pageTitle: title)),
-    );
-  }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString("page_title", title);
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+      final uri = Uri.parse("$baseUrl/site/title");
+      final req = http.MultipartRequest("POST", uri)..fields["title"] = title;
+      await req.send();
+
+      final uri2 = Uri.parse(
+        "$baseUrl/photos/count?title=${Uri.encodeComponent(title)}",
+      );
+      final res2 = await http.get(uri2);
+
+      int remaining = 999;
+      if (res2.statusCode == 200) {
+        final data = jsonDecode(res2.body);
+        remaining = (data["remaining"] as num).toInt();
+      }
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => (remaining <= 0)
+              ? LockPage(pageTitle: title)
+              : CameraPage(pageTitle: title),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("失敗: $e")));
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("ページタイトル入力")),
+      appBar: AppBar(title: const Text("タイトル入力")),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text("ページタイトルを入力してください"),
-            const SizedBox(height: 12),
             TextField(
               controller: _controller,
               decoration: InputDecoration(
@@ -119,13 +170,11 @@ class _TitleInputPageState extends State<TitleInputPage> {
                 errorText: _error,
                 border: const OutlineInputBorder(),
               ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _goCamera(),
             ),
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _goCamera,
-              child: const Text("次へ（カメラ起動）"),
+              onPressed: _saving ? null : _goNext,
+              child: Text(_saving ? "保存中..." : "次へ"),
             ),
           ],
         ),
@@ -134,7 +183,9 @@ class _TitleInputPageState extends State<TitleInputPage> {
   }
 }
 
-/// ② タイトル入力後：カメラ画面
+/// =====================
+/// Camera Page
+/// =====================
 class CameraPage extends StatefulWidget {
   final String pageTitle;
   const CameraPage({super.key, required this.pageTitle});
@@ -144,173 +195,102 @@ class CameraPage extends StatefulWidget {
 }
 
 class _CameraPageState extends State<CameraPage> {
-  late final CameraController _controller;
+  late CameraController _controller;
   bool _initialized = false;
   bool _taking = false;
-
-  int _remaining = 25; // ★残り回数（最初の1枚はノーカウントなので初期は25）
-  bool _loadingCount = true;
+  int _remaining = 0;
 
   @override
   void initState() {
     super.initState();
+    _controller = CameraController(cameras.first, ResolutionPreset.medium);
+    _init();
+    _fetchRemaining();
+  }
 
-    _controller = CameraController(
-      cameras.first,
-      ResolutionPreset.medium,
-      enableAudio: false,
+  Future<void> _init() async {
+    await _controller.initialize();
+    if (!mounted) return;
+    setState(() => _initialized = true);
+  }
+
+  Future<void> _fetchRemaining() async {
+    final uri = Uri.parse(
+      "$baseUrl/photos/count?title=${Uri.encodeComponent(widget.pageTitle)}",
+    );
+    final res = await http.get(uri);
+    if (!mounted) return;
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final r = (data["remaining"] as num).toInt();
+      setState(() => _remaining = r);
+
+      if (r <= 0) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => LockPage(pageTitle: widget.pageTitle),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _takePhoto() async {
+    if (_taking) return;
+    _taking = true;
+
+    final file = await _controller.takePicture();
+    final bytes = await file.readAsBytes();
+
+    if (!mounted) return;
+
+    final uploaded = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => PreviewPage(
+          pageTitle: widget.pageTitle,
+          imageBytes: bytes,
+          remainingBefore: (_remaining - 1).clamp(0, 999),
+        ),
+      ),
     );
 
-    _controller.initialize().then((_) {
-      if (!mounted) return;
-      setState(() => _initialized = true);
-    });
-
-    fetchRemaining();
-  }
-
-  Future<void> fetchRemaining() async {
-    setState(() => _loadingCount = true);
-    try {
-      final uri = Uri.parse(
-        "$baseUrl/photos/count?title=${Uri.encodeComponent(widget.pageTitle)}",
-      );
-      final res = await http.get(uri);
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final int remaining = (data["remaining"] as num).toInt();
-
-        if (!mounted) return;
-        setState(() => _remaining = remaining);
-
-        if (remaining <= 0) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(
-              builder: (_) => LockPage(pageTitle: widget.pageTitle),
-            ),
-            (route) => false,
-          );
-        }
-      }
-    } catch (_) {
-      // 通信失敗時は黙っておく（必要ならメッセージ表示も可）
-    } finally {
-      if (mounted) setState(() => _loadingCount = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> takeAndGoPreview() async {
-    if (!_initialized || _taking) return;
-
-    // ★残り0なら撮影ボタンを実質無効に
-    if (_remaining <= 0) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(
-          builder: (_) => LockPage(pageTitle: widget.pageTitle),
-        ),
-        (route) => false,
-      );
-      return;
+    if (uploaded == true) {
+      await _fetchRemaining();
     }
 
-    setState(() => _taking = true);
-
-    try {
-      final XFile file = await _controller.takePicture();
-      final Uint8List bytes = await file.readAsBytes();
-      if (!mounted) return;
-
-      final bool? uploaded = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => PreviewPage(
-            pageTitle: widget.pageTitle,
-            imageBytes: bytes,
-            remainingBefore: (_remaining - 1).clamp(0, 25), // ★プレビューにも残り表示
-          ),
-        ),
-      );
-
-      if (!mounted) return;
-
-      // ★アップロード成功で戻ってきたら残り回数を再取得
-      if (uploaded == true) {
-        await fetchRemaining();
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("撮影に失敗: $e")));
-    } finally {
-      if (mounted) setState(() => _taking = false);
-    }
+    _taking = false;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("${widget.pageTitle}  残り: $_remaining")),
+      appBar: AppBar(title: Text("${widget.pageTitle} 残り: $_remaining")),
       body: Column(
         children: [
           if (_initialized)
             AspectRatio(
               aspectRatio: _controller.value.aspectRatio,
               child: CameraPreview(_controller),
-            )
-          else
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(),
             ),
-
           const SizedBox(height: 12),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_loadingCount)
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 8),
-                    child: LinearProgressIndicator(),
-                  )
-                else
-                  Text(
-                    "残り撮影回数: $_remaining",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-
-                const SizedBox(height: 8),
-
-                ElevatedButton(
-                  onPressed: (_taking || _remaining <= 0)
-                      ? null
-                      : takeAndGoPreview,
-                  child: Text(_taking ? "撮影中..." : "写真を撮る"),
-                ),
-              ],
-            ),
+          ElevatedButton(
+            onPressed: (_remaining <= 0) ? null : _takePhoto,
+            child: const Text("写真を撮る"),
           ),
-
-          const SizedBox(height: 12),
         ],
       ),
     );
   }
 }
 
-/// ③ 撮影後：プレビュー（OKでFastAPIに送る）
+/// =====================
+/// Preview Page
+/// =====================
 class PreviewPage extends StatefulWidget {
   final String pageTitle;
   final Uint8List imageBytes;
-  final int remainingBefore; // ★追加
+  final int remainingBefore;
 
   const PreviewPage({
     super.key,
@@ -324,112 +304,58 @@ class PreviewPage extends StatefulWidget {
 }
 
 class _PreviewPageState extends State<PreviewPage> {
+  final _comment = TextEditingController();
   bool _uploading = false;
-  String _message = "";
 
-  Future<void> uploadToFastApi() async {
-    setState(() {
-      _uploading = true;
-      _message = "アップロード中...";
-    });
+  Future<void> _upload() async {
+    _uploading = true;
 
-    try {
-      final uri = Uri.parse("$baseUrl/upload");
+    final uri = Uri.parse("$baseUrl/upload");
+    final req = http.MultipartRequest("POST", uri)
+      ..fields["title"] = widget.pageTitle
+      ..fields["comment"] = _comment.text
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          "file",
+          widget.imageBytes,
+          filename: "capture.jpg",
+        ),
+      );
 
-      final req = http.MultipartRequest("POST", uri)
-        ..fields["title"] = widget.pageTitle
-        ..files.add(
-          http.MultipartFile.fromBytes(
-            "file",
-            widget.imageBytes,
-            filename: "capture.jpg",
-          ),
-        );
+    final res = await http.Response.fromStream(await req.send());
+    if (!mounted) return;
 
-      final streamed = await req.send();
-      final res = await http.Response.fromStream(streamed);
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      final remaining = (data["remaining"] as num).toInt();
 
-      if (!mounted) return;
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body);
-        final int remaining = (data["remaining"] as num).toInt();
-
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("送信しました！")));
-
-        await Future.delayed(const Duration(milliseconds: 200));
-        if (!mounted) return;
-
-        // ★残り0なら準備中へ
-        if (remaining <= 0) {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(
-              builder: (_) => LockPage(pageTitle: widget.pageTitle),
-            ),
-            (route) => false,
-          );
-        } else {
-          // ★アップロード成功を CameraPage に知らせて戻る
-          Navigator.of(context).pop(true);
-        }
-      } else if (res.statusCode == 409) {
-        // 制限到達
+      if (remaining <= 0) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (_) => LockPage(pageTitle: widget.pageTitle),
           ),
-          (route) => false,
+          (_) => false,
         );
       } else {
-        setState(() => _message = "失敗: ${res.statusCode}\n${res.body}");
+        Navigator.of(context).pop(true);
       }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _message = "例外: $e");
-    } finally {
-      if (mounted) setState(() => _uploading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("${widget.pageTitle}（プレビュー）")),
+      appBar: AppBar(title: const Text("プレビュー")),
       body: Column(
         children: [
-          const SizedBox(height: 12),
-          Text(
-            "残り撮影回数: ${widget.remainingBefore}",
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          Expanded(child: Image.memory(widget.imageBytes)),
+          TextField(
+            controller: _comment,
+            decoration: const InputDecoration(labelText: "コメント"),
           ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Center(
-              child: Image.memory(widget.imageBytes, fit: BoxFit.contain),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ElevatedButton(
-                  onPressed: _uploading ? null : uploadToFastApi,
-                  child: Text(_uploading ? "送信中..." : "OK（FastAPIに送る）"),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: _uploading
-                      ? null
-                      : () => Navigator.of(context).pop(false),
-                  child: const Text("戻る（撮り直す）"),
-                ),
-                const SizedBox(height: 8),
-                SelectableText(_message),
-              ],
-            ),
+          ElevatedButton(
+            onPressed: _uploading ? null : _upload,
+            child: const Text("送信"),
           ),
         ],
       ),
@@ -437,6 +363,9 @@ class _PreviewPageState extends State<PreviewPage> {
   }
 }
 
+/// =====================
+/// Lock Page
+/// =====================
 class LockPage extends StatefulWidget {
   final String pageTitle;
   const LockPage({super.key, required this.pageTitle});
@@ -446,9 +375,7 @@ class LockPage extends StatefulWidget {
 }
 
 class _LockPageState extends State<LockPage> {
-  Uint8List? _firstImage;
-  bool _loading = true;
-  String _msg = "";
+  Uint8List? _image;
 
   @override
   void initState() {
@@ -457,29 +384,13 @@ class _LockPageState extends State<LockPage> {
   }
 
   Future<void> _fetchFirst() async {
-    try {
-      final uri = Uri.parse(
-        "$baseUrl/photos/first?title=${Uri.encodeComponent(widget.pageTitle)}",
-      );
-      final res = await http.get(uri);
-
-      if (!mounted) return;
-
-      if (res.statusCode == 200) {
-        setState(() {
-          _firstImage = res.bodyBytes;
-          _msg = "";
-        });
-      } else if (res.statusCode == 404) {
-        setState(() => _msg = "まだ写真がありません");
-      } else {
-        setState(() => _msg = "取得失敗: ${res.statusCode}");
-      }
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _msg = "例外: $e");
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    final uri = Uri.parse(
+      "$baseUrl/photos/first?title=${Uri.encodeComponent(widget.pageTitle)}",
+    );
+    final res = await http.get(uri);
+    if (!mounted) return;
+    if (res.statusCode == 200) {
+      setState(() => _image = res.bodyBytes);
     }
   }
 
@@ -487,48 +398,29 @@ class _LockPageState extends State<LockPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.pageTitle)),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const Text(
-              "準備中の画面",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-
-            if (_loading) const LinearProgressIndicator(),
-
-            if (_firstImage != null) ...[
-              const SizedBox(height: 12),
-              const Text("（タイトル入力後に最初に撮った写真）"),
-              const SizedBox(height: 8),
-              Expanded(
-                child: Center(
-                  child: Image.memory(_firstImage!, fit: BoxFit.contain),
+      body: Column(
+        children: [
+          const Text("タイトル入力後に最初に撮った写真"),
+          if (_image != null) Expanded(child: Image.memory(_image!)),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => QrScanPage(pageTitle: widget.pageTitle),
                 ),
-              ),
-            ] else ...[
-              const SizedBox(height: 12),
-              Text(_msg),
-            ],
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => QrScanPage(pageTitle: widget.pageTitle),
-                  ),
-                );
-              },
-              child: const Text("QRコードを読み取って解錠"),
-            ),
-          ],
-        ),
+              );
+            },
+            child: const Text("QRで解錠する"),
+          ),
+        ],
       ),
     );
   }
 }
 
+/// =====================
+/// QR Scan
+/// =====================
 class QrScanPage extends StatefulWidget {
   final String pageTitle;
   const QrScanPage({super.key, required this.pageTitle});
@@ -538,56 +430,40 @@ class QrScanPage extends StatefulWidget {
 }
 
 class _QrScanPageState extends State<QrScanPage> {
-  bool _handled = false;
-  String _msg = "カメラにQRをかざしてください";
+  bool _done = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("QRコード読み取り")),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              _msg,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(
-            child: MobileScanner(
-              onDetect: (capture) {
-                if (_handled) return;
-
-                final barcodes = capture.barcodes;
-                if (barcodes.isEmpty) return;
-
-                final value = barcodes.first.rawValue;
-                if (value == null || value.isEmpty) return;
-
-                _handled = true;
-
-                if (value.trim() == unlockKey) {
-                  // ✅ 解錠成功 → 振り返り画面へ
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder: (_) => AlbumPage(pageTitle: widget.pageTitle),
-                    ),
-                  );
-                } else {
-                  // ❌ 解錠失敗 → メッセージ表示して再試行可能にする
-                  setState(() {
-                    _msg = "NG（鍵が違います）\n読み取った値: $value";
-                    _handled = false; // 再スキャンできるように戻す
-                  });
-                }
-              },
-            ),
-          ),
-        ],
+      appBar: AppBar(title: const Text("QRスキャン")),
+      body: MobileScanner(
+        onDetect: (capture) {
+          if (_done) return;
+          final value = capture.barcodes.first.rawValue;
+          if (value == unlockKey) {
+            _done = true;
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (_) => AlbumPage(pageTitle: widget.pageTitle),
+              ),
+            );
+          }
+        },
       ),
     );
   }
+}
+
+/// =====================
+/// Album
+/// =====================
+class PhotoMeta {
+  final int id;
+  final String comment;
+  PhotoMeta(this.id, this.comment);
+
+  factory PhotoMeta.fromJson(Map<String, dynamic> j) =>
+      PhotoMeta(j["id"], j["comment"] ?? "");
 }
 
 class AlbumPage extends StatefulWidget {
@@ -599,92 +475,43 @@ class AlbumPage extends StatefulWidget {
 }
 
 class _AlbumPageState extends State<AlbumPage> {
-  late Future<List<int>> _idsFuture;
-  int _index = 0;
-  late PageController _pageController;
+  late Future<List<PhotoMeta>> _photos;
 
   @override
   void initState() {
     super.initState();
-    _idsFuture = _fetchIds();
-
-    _pageController = PageController(initialPage: 1000); // 擬似無限スクロール用（真ん中から開始）
+    _photos = _fetch();
   }
 
-  Future<List<int>> _fetchIds() async {
+  Future<List<PhotoMeta>> _fetch() async {
     final uri = Uri.parse(
-      "$baseUrl/photos/ids?title=${Uri.encodeComponent(widget.pageTitle)}",
+      "$baseUrl/photos/list?title=${Uri.encodeComponent(widget.pageTitle)}",
     );
     final res = await http.get(uri);
-
-    if (res.statusCode != 200) {
-      throw Exception("ids取得失敗: ${res.statusCode} ${res.body}");
-    }
-
     final data = jsonDecode(res.body);
-    final List ids = data["ids"] as List;
-    return ids.map((e) => (e as num).toInt()).toList();
+    return (data["photos"] as List).map((e) => PhotoMeta.fromJson(e)).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("${widget.pageTitle}（アルバム）")),
-      body: FutureBuilder<List<int>>(
-        future: _idsFuture,
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) {
+      appBar: AppBar(title: const Text("アルバム")),
+      body: FutureBuilder<List<PhotoMeta>>(
+        future: _photos,
+        builder: (c, s) {
+          if (!s.hasData)
             return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return Center(child: Text("エラー: ${snap.error}"));
-          }
-
-          final ids = snap.data ?? [];
-          if (ids.isEmpty) {
-            return const Center(child: Text("写真がありません"));
-          }
-
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  "${_index + 1} / ${ids.length}",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  onPageChanged: (i) {
-                    setState(() {
-                      _index = i % ids.length;
-                    });
-                  },
-                  itemBuilder: (context, i) {
-                    final id = ids[i % ids.length];
-                    final url = "$baseUrl/photos/$id";
-
-                    return InteractiveViewer(
-                      child: Center(
-                        child: Image.network(
-                          url,
-                          fit: BoxFit.contain,
-                          loadingBuilder: (context, child, progress) {
-                            if (progress == null) return child;
-                            return const CircularProgressIndicator();
-                          },
-                          errorBuilder: (context, error, stack) {
-                            return Text("画像読み込み失敗: $error");
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ],
+          return PageView(
+            children: s.data!
+                .map(
+                  (p) => Column(
+                    children: [
+                      Expanded(child: Image.network("$baseUrl/photos/${p.id}")),
+                      Text(p.comment),
+                    ],
+                  ),
+                )
+                .toList(),
           );
         },
       ),
