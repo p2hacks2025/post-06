@@ -73,3 +73,16 @@ def photos_count():
     with engine.connect() as conn:
         cnt = conn.execute(text("SELECT COUNT(*) AS cnt FROM photos")).mappings().first()["cnt"]
     return {"ok": True, "count": cnt}
+
+from fastapi.staticfiles import StaticFiles
+
+app.mount(
+    "/",
+    StaticFiles(
+        directory="../WebApplication/flutter_client/build/web",
+        html=True
+    ),
+    name="flutter"
+)
+
+

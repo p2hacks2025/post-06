@@ -18,9 +18,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: CameraPage(),
+      home: Scaffold(
+        backgroundColor: Colors.black, // 余白を黒に
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 430),
+            child: const CameraPage(),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -38,7 +46,7 @@ class _CameraPageState extends State<CameraPage> {
   bool _taking = false;
   int _count = 0;
   static const int _goal = 25;
-  final String baseUrl = "http://127.0.0.1:8000";
+  final String baseUrl = "http://192.168.11.6:8000"; // pythonを開いている機器のIPv4
 
   @override
   void initState() {
@@ -120,33 +128,35 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text("撮影画面  $_count/$_goal")),
-      body: Column(
-        children: [
-          if (_initialized)
-            AspectRatio(
-              aspectRatio: _controller.value.aspectRatio,
-              child: CameraPreview(_controller),
-            )
-          else
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: CircularProgressIndicator(),
-            ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _taking ? null : takeAndGoPreview,
-                child: Text(_taking ? "撮影中..." : "写真を撮って次へ"),
+    return SafeArea(
+      child: Scaffold(
+        appBar: AppBar(title: Text("撮影画面  $_count/$_goal")),
+        body: Column(
+          children: [
+            if (_initialized)
+              AspectRatio(
+                aspectRatio: _controller.value.aspectRatio,
+                child: CameraPreview(_controller),
+              )
+            else
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(),
+              ),
+            Expanded(child: Container()),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _taking ? null : takeAndGoPreview,
+                  child: Text(_taking ? "撮影中..." : "写真を撮って次へ"),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-        ],
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
     );
   }
@@ -165,7 +175,7 @@ class _PreviewPageState extends State<PreviewPage> {
   String _message = "";
 
   // Flutter Web + FastAPI（同じPC）
-  final String baseUrl = "http://127.0.0.1:8000";
+  final String baseUrl = "http://192.168.11.6:8000"; // pythonを開いている機器のIPv4
 
   Future<void> uploadToFastApi() async {
     setState(() {
