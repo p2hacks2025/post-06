@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response as FastAPIResponse
 from pathlib import Path
 from sqlalchemy import create_engine, text
+from fastapi.responses import FileResponse
+import os
+
 
 print("### MY FASTAPI RUNNING ###")
 
@@ -11,7 +14,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -253,6 +256,7 @@ def set_site_title(title: str = Form(...)):
 @app.on_event("startup")
 def init_db():
     with engine.begin() as conn:
+        # photos
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS photos (
               id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -266,22 +270,32 @@ def init_db():
             )
         """))
 
-# 枚数取得API
-@app.get("/photos/count")
-def photos_count():
-    with engine.connect() as conn:
-        cnt = conn.execute(text("SELECT COUNT(*) AS cnt FROM photos")).mappings().first()["cnt"]
-    return {"ok": True, "count": cnt}
+        # site_state ← ★これが足りなかった
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS site_state (
+              id INT NOT NULL,
+              page_title VARCHAR(255) NOT NULL,
+              PRIMARY KEY (id)
+            )
+        """))
+
 
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
+# Flutter Web のビルドディレクトリ
+WEB_DIR = "../WebApplication/flutter_client/build/web"
+
+# Flutter の static ファイルを /static にマウント
 app.mount(
-    "/",
-    StaticFiles(
-        directory="../WebApplication/flutter_client/build/web",
-        html=True
-    ),
-    name="flutter"
+    "/static",
+    StaticFiles(directory=WEB_DIR),
+    name="static"
 )
+
+# / にアクセスしたら index.html を返す
+@app.get("/")
+def root():
+    return FileResponse(os.path.join(WEB_DIR, "index.html"))
 
 
