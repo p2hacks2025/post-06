@@ -1,7 +1,13 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Response, Form
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response as FastAPIResponse
+import os
+import time
+import uuid
 from pathlib import Path
+
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
+
 from sqlalchemy import create_engine, text
 from fastapi.responses import FileResponse
 import os
@@ -9,7 +15,9 @@ import os
 
 print("### MY FASTAPI RUNNING ###")
 
-# ===== FastAPI =====
+# =========================
+# FastAPI
+# =========================
 app = FastAPI()
 
 app.add_middleware(
@@ -20,12 +28,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.options("/upload")
-def options_upload():
-    return Response(status_code=204)
-
-# ===== MySQL =====
-DATABASE_URL = "mysql+pymysql://flutter_user:root@localhost:3306/flutter_db"
+# =========================
+# Database
+# =========================
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "mysql+pymysql://flutter_user:root@localhost:3306/flutter_db",
+)
 
 engine = create_engine(
     DATABASE_URL,
@@ -33,159 +42,94 @@ engine = create_engine(
     echo=True,
 )
 
-# ===== business rules =====
-GOAL = 10                      # カウント対象の枚数
-FREE_FIRST = 1                 # 最初の1枚はノーカウント
-LIMIT_PER_TITLE = GOAL + FREE_FIRST  # DB保存上限（=11）
+# =========================
+# Upload directory
+# =========================
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
-def calc_remaining(total_saved: int) -> int:
-    counted = max(0, total_saved - FREE_FIRST)  # 2枚目以降だけ数える
-    return max(0, GOAL - counted)
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
+# =========================
+# Startup: init DB (retry)
+# =========================
+@app.on_event("startup")
+def init_db():
+    last_err = None
+
+    # MySQL が ready になるまで最大20秒待つ
+    for _ in range(20):
+        try:
+            with engine.begin() as conn:
+                # photos テーブル
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS photos (
+                      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                      page_title VARCHAR(255) NOT NULL,
+                      image LONGBLOB NOT NULL,
+                      content_type VARCHAR(255) NOT NULL,
+                      comment TEXT NULL,
+                      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      PRIMARY KEY (id),
+                      INDEX idx_photos_title (page_title)
+                    )
+                """))
+
+                # site_state テーブル
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS site_state (
+                      id TINYINT UNSIGNED NOT NULL,
+                      page_title VARCHAR(255) NOT NULL,
+                      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        ON UPDATE CURRENT_TIMESTAMP,
+                      PRIMARY KEY (id)
+                    )
+                """))
+
+            print("### DB READY ###")
+            return
+
+        except Exception as e:
+            last_err = e
+            time.sleep(1)
+
+    raise RuntimeError(f"DB not ready: {last_err}")
+
+# =========================
+# Health check
+# =========================
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-# 最初の写真（画像）を返す
-@app.get("/photos/first")
-def get_first_photo(title: str):
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("""
-                SELECT image, content_type
-                FROM photos
-                WHERE page_title = :t
-                ORDER BY id ASC
-                LIMIT 1
-            """),
-            {"t": title},
-        ).first()
-
-    if not row:
-        raise HTTPException(status_code=404, detail="no photo")
-
-    image, content_type = row
-    return FastAPIResponse(content=image, media_type=content_type)
-
-# ★ 最初の写真の情報（created_at）を返す：ロック画面の「XX日」表示用
-@app.get("/photos/first_info")
-def get_first_photo_info(title: str):
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("""
-                SELECT id, created_at
-                FROM photos
-                WHERE page_title = :t
-                ORDER BY id ASC
-                LIMIT 1
-            """),
-            {"t": title},
-        ).first()
-
-    if not row:
-        raise HTTPException(status_code=404, detail="no photo")
-
-    photo_id, created_at = row
-
-    # Flutter側で DateTime.parse しやすいように文字列化
-    created_at_str = created_at.isoformat(sep=" ") if hasattr(created_at, "isoformat") else str(created_at)
-
-    return {
-        "ok": True,
-        "title": title,
-        "photo_id": int(photo_id),
-        "created_at": created_at_str,  # 例: "2025-12-16 20:15:03"
-    }
-
-# titleごとの枚数と残りを返す
-@app.get("/photos/count")
-def photos_count(title: str):
-    with engine.begin() as conn:
-        cnt = conn.execute(
-            text("SELECT COUNT(*) FROM photos WHERE page_title = :t"),
-            {"t": title},
-        ).scalar()
-
-    total = int(cnt or 0)
-    remaining = calc_remaining(total)
-    return {"ok": True, "title": title, "count": total, "remaining": remaining}
-
-# titleごとに保存（comment も一緒に保存）
+# =========================
+# Upload image
+# =========================
 @app.post("/upload")
 async def upload_image(
-    title: str = Form(...),
-    comment: str = Form(""),
+    title: str,
     file: UploadFile = File(...),
 ):
     data = await file.read()
-    if not data:
-        raise HTTPException(status_code=400, detail="empty file")
-
-    content_type = file.content_type or "application/octet-stream"
-    comment = (comment or "").strip()
 
     with engine.begin() as conn:
-        cnt = conn.execute(
-            text("SELECT COUNT(*) FROM photos WHERE page_title = :t"),
-            {"t": title},
-        ).scalar()
-        total = int(cnt or 0)
-
-        if total >= LIMIT_PER_TITLE:
-            raise HTTPException(status_code=409, detail=f"limit reached: {GOAL} (+1 free first)")
-
-        result = conn.execute(
+        conn.execute(
             text("""
-                INSERT INTO photos (page_title, image, content_type, comment)
-                VALUES (:t, :img, :ct, :cmt)
+                INSERT INTO photos (page_title, image, content_type)
+                VALUES (:title, :image, :ctype)
             """),
-            {"t": title, "img": data, "ct": content_type, "cmt": comment},
+            {
+                "title": title,
+                "image": data,
+                "ctype": file.content_type,
+            }
         )
-        new_id = int(result.lastrowid)
 
-        new_cnt = conn.execute(
-            text("SELECT COUNT(*) FROM photos WHERE page_title = :t"),
-            {"t": title},
-        ).scalar()
+    return {"result": "ok"}
 
-    total2 = int(new_cnt or 0)
-    remaining = calc_remaining(total2)
-    return {"ok": True, "title": title, "photo_id": new_id, "count": total2, "remaining": remaining}
-
-# 写真ID一覧（互換用）
-@app.get("/photos/ids")
-def photo_ids(title: str):
-    with engine.begin() as conn:
-        rows = conn.execute(
-            text("""
-                SELECT id
-                FROM photos
-                WHERE page_title = :t
-                ORDER BY id ASC
-            """),
-            {"t": title},
-        ).fetchall()
-
-    return {"ok": True, "title": title, "ids": [int(r[0]) for r in rows]}
-
-# アルバム表示用：id と comment をまとめて返す
-@app.get("/photos/list")
-def photo_list(title: str):
-    with engine.begin() as conn:
-        rows = conn.execute(
-            text("""
-                SELECT id, COALESCE(comment, '') AS comment
-                FROM photos
-                WHERE page_title = :t
-                ORDER BY id ASC
-            """),
-            {"t": title},
-        ).fetchall()
-
-    photos = [{"id": int(r[0]), "comment": (r[1] or "")} for r in rows]
-    return {"ok": True, "title": title, "photos": photos}
-
-# 写真1枚を返す
+# =========================
+# Get image
+# =========================
 @app.get("/photos/{photo_id}")
 def get_photo(photo_id: int):
     with engine.begin() as conn:
@@ -194,13 +138,12 @@ def get_photo(photo_id: int):
                 SELECT image, content_type
                 FROM photos
                 WHERE id = :id
-                LIMIT 1
             """),
-            {"id": photo_id},
-        ).first()
+            {"id": photo_id}
+        ).fetchone()
 
     if not row:
-        raise HTTPException(status_code=404, detail="not found")
+        raise HTTPException(status_code=404, detail="Photo not found")
 
     image, content_type = row
     return FastAPIResponse(content=image, media_type=content_type)
