@@ -6,7 +6,14 @@ late List<CameraDescription> cameras;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  cameras = await availableCameras();
+
+  try {
+    cameras = await availableCameras();
+  } catch (e) {
+    cameras = [];
+    debugPrint("Camera init failed (web http/permission): $e");
+  }
+
   runApp(const MyApp());
 }
 
