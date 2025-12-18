@@ -17,21 +17,33 @@ class _TitleInputPageState extends State<TitleInputPage> {
     final title = _controller.text.trim();
     if (title.isEmpty) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("page_title", title);
-    await Api.saveTitleToServer(title);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString("page_title", title);
 
-    final remaining = await Api.fetchRemaining(title);
-    if (!mounted) return;
+      // Avoid hanging when the backend is down by timing out requests
+      await Api.saveTitleToServer(title).timeout(const Duration(seconds: 3));
+      final remaining = await Api.fetchRemaining(title).timeout(
+        const Duration(seconds: 3),
+        onTimeout: () => 999,
+      );
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => remaining <= 0
-            ? LockPage(pageTitle: title)
-            : CameraPage(pageTitle: title),
-      ),
-    );
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => remaining <= 0
+              ? LockPage(pageTitle: title)
+              : CameraPage(pageTitle: title),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("サーバーに接続できません: $e")),
+      );
+    }
   }
 
   @override

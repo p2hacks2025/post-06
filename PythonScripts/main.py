@@ -13,16 +13,9 @@ print("### MY FASTAPI RUNNING ###")
 # ===== FastAPI =====
 app = FastAPI()
 
-# ✅ 同一Wi-Fi/LAN でも Flutter web から叩けるように
-# 例: http://192.168.0.12:8080 なども許可
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^http:\/\/("
-                       r"localhost|127\.0\.0\.1|0\.0\.0\.0|"
-                       r"192\.168\.\d{1,3}\.\d{1,3}|"
-                       r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
-                       r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}"
-                       r")(:\d+)?$",
+    allow_origins=["*"],     # ★ 全ドメイン許可
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
