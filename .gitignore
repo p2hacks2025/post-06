@@ -1,0 +1,103 @@
+####################################
+# 共通
+####################################
+.DS_Store
+*.log
+*.tmp
+*.swp
+
+####################################
+# Flutter / Dart
+####################################
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+.pub-cache/
+build/
+coverage/
+
+# Flutter IDE
+.idea/
+.vscode/
+
+# ★ Flutter の lib は必ず追跡する
+!lib/
+!lib/**
+
+####################################
+# Python / FastAPI
+####################################
+__pycache__/
+*.py[cod]
+*.so
+
+# 仮想環境
+.venv/
+venv/
+env/
+ENV/
+
+# Python build / package
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Python test / cache
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ★ Python の lib を無視したい場合は backend 配下だけ指定
+backend/lib/
+backend/lib64/
+
+####################################
+# Node.js
+####################################
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+dist/
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+
+####################################
+# Unity
+####################################
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+.vs/
+
+# Unity generated
+*.csproj
+*.unityproj
+*.sln
+*.user
+*.userprefs
+*.pidb
+*.pdb
+*.mdb
+*.opendb
+
+####################################
+# 環境変数
+####################################
+.env
+.env.*
+.env
+DB/
+__pycache__/
+uploads/
+
