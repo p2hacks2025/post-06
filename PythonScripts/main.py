@@ -1,7 +1,11 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Response, Form
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response as FastAPIResponse
+import os
+import time
 from pathlib import Path
+
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+
 from sqlalchemy import create_engine, text
 
 print("### MY FASTAPI RUNNING ###")
@@ -11,7 +15,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$",
+    allow_origins=["*"],     # ★ 全ドメイン許可
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -22,7 +26,10 @@ def options_upload():
     return Response(status_code=204)
 
 # ===== MySQL =====
-DATABASE_URL = "mysql+pymysql://flutter_user:root@localhost:3306/flutter_db"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "mysql+pymysql://flutter_user:root@localhost:3306/flutter_db",
+)
 
 engine = create_engine(
     DATABASE_URL,
@@ -39,11 +46,12 @@ def calc_remaining(total_saved: int) -> int:
     counted = max(0, total_saved - FREE_FIRST)  # 2枚目以降だけ数える
     return max(0, GOAL - counted)
 
+# ===== Health =====
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-# 最初の写真（画像）を返す
+# ===== 最初の写真（画像）を返す =====
 @app.get("/photos/first")
 def get_first_photo(title: str):
     with engine.begin() as conn:
@@ -62,9 +70,9 @@ def get_first_photo(title: str):
         raise HTTPException(status_code=404, detail="no photo")
 
     image, content_type = row
-    return FastAPIResponse(content=image, media_type=content_type)
+    return Response(content=image, media_type=content_type)
 
-# ★ 最初の写真の情報（created_at）を返す：ロック画面の「XX日」表示用
+# ===== 最初の写真の情報（created_at） =====
 @app.get("/photos/first_info")
 def get_first_photo_info(title: str):
     with engine.begin() as conn:
@@ -83,18 +91,16 @@ def get_first_photo_info(title: str):
         raise HTTPException(status_code=404, detail="no photo")
 
     photo_id, created_at = row
-
-    # Flutter側で DateTime.parse しやすいように文字列化
     created_at_str = created_at.isoformat(sep=" ") if hasattr(created_at, "isoformat") else str(created_at)
 
     return {
         "ok": True,
         "title": title,
         "photo_id": int(photo_id),
-        "created_at": created_at_str,  # 例: "2025-12-16 20:15:03"
+        "created_at": created_at_str,
     }
 
-# titleごとの枚数と残りを返す
+# ===== titleごとの枚数と残り =====
 @app.get("/photos/count")
 def photos_count(title: str):
     with engine.begin() as conn:
@@ -107,13 +113,17 @@ def photos_count(title: str):
     remaining = calc_remaining(total)
     return {"ok": True, "title": title, "count": total, "remaining": remaining}
 
-# titleごとに保存（comment も一緒に保存）
+# ===== アップロード（title/comment/file を multipart-form で受ける） =====
 @app.post("/upload")
 async def upload_image(
     title: str = Form(...),
     comment: str = Form(""),
     file: UploadFile = File(...),
 ):
+    title = (title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="empty title")
+
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="empty file")
@@ -149,7 +159,7 @@ async def upload_image(
     remaining = calc_remaining(total2)
     return {"ok": True, "title": title, "photo_id": new_id, "count": total2, "remaining": remaining}
 
-# 写真ID一覧（互換用）
+# ===== 写真ID一覧（互換用） =====
 @app.get("/photos/ids")
 def photo_ids(title: str):
     with engine.begin() as conn:
@@ -165,7 +175,7 @@ def photo_ids(title: str):
 
     return {"ok": True, "title": title, "ids": [int(r[0]) for r in rows]}
 
-# アルバム表示用：id と comment をまとめて返す
+# ===== アルバム表示用：id と comment =====
 @app.get("/photos/list")
 def photo_list(title: str):
     with engine.begin() as conn:
@@ -182,7 +192,7 @@ def photo_list(title: str):
     photos = [{"id": int(r[0]), "comment": (r[1] or "")} for r in rows]
     return {"ok": True, "title": title, "photos": photos}
 
-# 写真1枚を返す
+# ===== 写真1枚を返す =====
 @app.get("/photos/{photo_id}")
 def get_photo(photo_id: int):
     with engine.begin() as conn:
@@ -200,9 +210,9 @@ def get_photo(photo_id: int):
         raise HTTPException(status_code=404, detail="not found")
 
     image, content_type = row
-    return FastAPIResponse(content=image, media_type=content_type)
+    return Response(content=image, media_type=content_type)
 
-# コメントだけ後から更新したい場合（任意）
+# ===== コメント更新（任意） =====
 @app.post("/photos/{photo_id}/comment")
 def set_photo_comment(photo_id: int, comment: str = Form("")):
     comment = (comment or "").strip()
@@ -217,7 +227,7 @@ def set_photo_comment(photo_id: int, comment: str = Form("")):
 
     return {"ok": True, "photo_id": photo_id, "comment": comment}
 
-# 現在のタイトルを返す
+# ===== 現在のタイトル =====
 @app.get("/site/title")
 def get_site_title():
     with engine.begin() as conn:
@@ -230,10 +240,10 @@ def get_site_title():
 
     return {"exists": True, "title": row[0]}
 
-# タイトルを保存する
+# ===== タイトル保存 =====
 @app.post("/site/title")
 def set_site_title(title: str = Form(...)):
-    title = title.strip()
+    title = (title or "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="empty title")
 
@@ -249,35 +259,46 @@ def set_site_title(title: str = Form(...)):
 
     return {"ok": True, "title": title}
 
-# テーブルの自動生成（起動時）
+# ===== 起動時DB初期化（MySQL待ちリトライ付き） =====
 @app.on_event("startup")
 def init_db():
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS photos (
-              id INT UNSIGNED NOT NULL AUTO_INCREMENT,
-              page_title VARCHAR(255) NOT NULL,
-              image LONGBLOB NOT NULL,
-              content_type VARCHAR(255) NOT NULL,
-              comment TEXT NULL,
-              created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-              PRIMARY KEY (id),
-              INDEX idx_photos_title (page_title)
-            )
-        """))
-
-        # 既存テーブルが古い場合の互換
+    last_err = None
+    for _ in range(20):  # 最大20秒待つ
         try:
-            conn.execute(text("ALTER TABLE photos ADD COLUMN comment TEXT NULL"))
-        except Exception:
-            pass
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS photos (
+                      id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+                      page_title VARCHAR(255) NOT NULL,
+                      image LONGBLOB NOT NULL,
+                      content_type VARCHAR(255) NOT NULL,
+                      comment TEXT NULL,
+                      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                      PRIMARY KEY (id),
+                      INDEX idx_photos_title (page_title)
+                    )
+                """))
 
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS site_state (
-              id TINYINT UNSIGNED NOT NULL,
-              page_title VARCHAR(255) NOT NULL,
-              updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                ON UPDATE CURRENT_TIMESTAMP,
-              PRIMARY KEY (id)
-            )
-        """))
+                # 既存テーブルが古い場合の互換
+                try:
+                    conn.execute(text("ALTER TABLE photos ADD COLUMN comment TEXT NULL"))
+                except Exception:
+                    pass
+
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS site_state (
+                      id TINYINT UNSIGNED NOT NULL,
+                      page_title VARCHAR(255) NOT NULL,
+                      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        ON UPDATE CURRENT_TIMESTAMP,
+                      PRIMARY KEY (id)
+                    )
+                """))
+
+            print("### DB READY ###")
+            return
+        except Exception as e:
+            last_err = e
+            time.sleep(1)
+
+    raise RuntimeError(f"DB not ready: {last_err}")
