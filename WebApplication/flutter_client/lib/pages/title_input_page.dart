@@ -78,7 +78,10 @@ class _TitleInputPageState extends State<TitleInputPage> {
                 child: SizedBox(
                   width: s(196),
                   height: s(196),
-                  child: Image.asset('images/logo.png', fit: BoxFit.cover),
+                  child: Image.asset(
+                    'images/logo_triangle.png',
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
 
