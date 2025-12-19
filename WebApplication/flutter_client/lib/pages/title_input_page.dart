@@ -73,14 +73,15 @@ class _TitleInputPageState extends State<TitleInputPage> {
               /// 上位置（補正込み）
               SizedBox(height: correctedTop),
 
-              /// ロゴ画像
+              /// ロゴ画像（簡略化）
               Center(
                 child: SizedBox(
-                  width: s(196),
-                  height: s(196),
+                  width: s(286),
+                  height: s(216),
                   child: Image.asset(
                     'images/logo_triangle.png',
                     fit: BoxFit.cover,
+                    alignment: Alignment.topCenter,
                   ),
                 ),
               ),
