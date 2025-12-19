@@ -71,7 +71,7 @@ class _PreviewPageState extends State<PreviewPage> {
               child: SizedBox(
                 width: 68,
                 height: 68,
-                child: Image.asset('images/logo.png', fit: BoxFit.cover),
+                child: Image.asset('images/logo_square.png', fit: BoxFit.cover),
               ),
             ),
 
