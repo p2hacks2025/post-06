@@ -57,6 +57,17 @@ class Api {
     await req.send();
   }
 
+  static Future<String?> fetchSiteTitle() async {
+    final uri = Uri.parse("$baseUrl/site/title");
+    final res = await http.get(uri);
+    if (res.statusCode != 200) return null;
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final exists = (data["exists"] as bool?) ?? false;
+    if (!exists) return null;
+    final title = (data["title"] ?? "").toString().trim();
+    return title.isEmpty ? null : title;
+  }
+
   static Future<Map<String, dynamic>> uploadPhoto({
     required String title,
     required String comment,
