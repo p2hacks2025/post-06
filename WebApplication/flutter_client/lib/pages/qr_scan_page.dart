@@ -17,21 +17,104 @@ class _QrScanPageState extends State<QrScanPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("QRスキャン")),
-      body: MobileScanner(
-        onDetect: (capture) {
-          if (_done) return;
-          final value = capture.barcodes.first.rawValue;
-          if (value == unlockKey) {
-            _done = true;
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AlbumPage(pageTitle: widget.pageTitle),
+      body: SafeArea(
+        top: false,
+        child: Stack(
+          children: [
+            // 背景
+            Positioned.fill(child: Container(color: Colors.white)),
+
+            // QRカメラ（背面）
+            Positioned(
+              left: 31,
+              right: 31,
+              top: 154,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // カメラ表示
+                  SizedBox(
+                    width: double.infinity,
+                    height: 445,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: MobileScanner(
+                        onDetect: (capture) {
+                          if (_done) return;
+                          final value = capture.barcodes.first.rawValue;
+                          if (value == unlockKey) {
+                            _done = true;
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    AlbumPage(pageTitle: widget.pageTitle),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 27),
+
+                  // 説明ボックス
+                  Container(
+                    width: double.infinity,
+                    height: 173,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 22,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        'それぞれが持っているカードを組み合わせて\n'
+                        'QRコードを作り、スキャンしてください。',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          height: 1.73,
+                          letterSpacing: 0.46,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            );
-          }
-        },
+            ),
+
+            // 上部バー
+            Positioned(
+              left: 0,
+              top: 0,
+              right: 0,
+              height: 103,
+              child: Container(color: Colors.black),
+            ),
+
+            // ロゴ（中央）
+            Positioned(
+              top: 35,
+              left: (MediaQuery.of(context).size.width - 68) / 2,
+              child: SizedBox(
+                width: 68,
+                height: 68,
+                child: Image.asset(
+                  'images/logo_square.png',
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
