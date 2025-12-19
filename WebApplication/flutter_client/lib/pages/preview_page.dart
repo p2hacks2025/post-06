@@ -48,16 +48,123 @@ class _PreviewPageState extends State<PreviewPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("プレビュー")),
-      body: Column(
-        children: [
-          Expanded(child: Image.memory(widget.imageBytes)),
-          TextField(
-            controller: _comment,
-            decoration: const InputDecoration(labelText: "コメント"),
-          ),
-          ElevatedButton(onPressed: _upload, child: const Text("送信")),
-        ],
+      body: SafeArea(
+        top: false,
+        child: Stack(
+          children: [
+            // 背景
+            Positioned.fill(child: Container(color: Colors.white)),
+
+            // 上部黒バー
+            Positioned(
+              left: 0,
+              top: 0,
+              right: 0,
+              height: 103,
+              child: Container(color: Colors.black),
+            ),
+
+            // ロゴ（仮：画像バイトが無いので placehold 的に Image.memory 使用）
+            Positioned(
+              top: 35,
+              left: (MediaQuery.of(context).size.width - 68) / 2,
+              child: SizedBox(
+                width: 68,
+                height: 68,
+                child: Image.asset('images/logo.png', fit: BoxFit.cover),
+              ),
+            ),
+
+            // メインコンテンツ
+            Positioned(
+              left: 30,
+              right: 30,
+              top: 154,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 画像プレビュー
+                  SizedBox(
+                    width: double.infinity,
+                    height: 445,
+                    child: Image.memory(widget.imageBytes, fit: BoxFit.cover),
+                  ),
+
+                  const SizedBox(height: 27),
+
+                  // コメント入力
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: TextField(
+                      controller: _comment,
+                      maxLines: null,
+                      decoration: InputDecoration(
+                        hintText: 'メッセージを入力（任意）',
+                        hintStyle: TextStyle(
+                          color: Colors.black.withOpacity(0.38),
+                          fontSize: 16,
+                          height: 1.5,
+                          letterSpacing: 0.15,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 16,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide: BorderSide(
+                            color: Colors.black.withOpacity(0.09),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide: BorderSide(
+                            color: Colors.black.withOpacity(0.09),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 27),
+
+                  // 完了ボタン
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _upload,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF212121),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        elevation: 4,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 8,
+                        ),
+                      ),
+                      child: const Text(
+                        '完了',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          height: 1.73,
+                          letterSpacing: 0.46,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
