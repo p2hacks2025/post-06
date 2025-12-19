@@ -33,6 +33,7 @@ class _CameraPageState extends State<CameraPage> {
     super.initState();
 
     _loadRemaining();
+    _loadGroupShotState();
 
     final back = _findCamera(CameraLensDirection.back);
     _currentCamera = back ?? (cameras.isNotEmpty ? cameras.first : null);
@@ -122,6 +123,14 @@ class _CameraPageState extends State<CameraPage> {
     }
 
     setState(() => _remaining = r);
+  }
+
+  Future<void> _loadGroupShotState() async {
+    final first = await Api.fetchFirstCreatedAt(widget.pageTitle);
+    if (!mounted || first == null) return;
+    if (_needGroupShot) {
+      setState(() => _needGroupShot = false);
+    }
   }
 
   Future<void> _take() async {

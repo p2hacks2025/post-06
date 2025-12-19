@@ -12,8 +12,13 @@ class AppRoot extends StatelessWidget {
   Future<String?> _loadTitle() async {
     final prefs = await SharedPreferences.getInstance();
     final t = prefs.getString("page_title");
-    if (t == null || t.trim().isEmpty) return null;
-    return t;
+    if (t != null && t.trim().isNotEmpty) return t;
+
+    final remote = await Api.fetchSiteTitle();
+    if (remote == null) return null;
+
+    await prefs.setString("page_title", remote);
+    return remote;
   }
 
   @override
