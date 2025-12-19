@@ -32,8 +32,10 @@ class _CameraPageState extends State<CameraPage> {
   void initState() {
     super.initState();
 
+    // 初期化と並行して残り回数取得
     _loadRemaining();
 
+    // 最初は「背面があれば背面、なければ先頭」
     final back = _findCamera(CameraLensDirection.back);
     _currentCamera = back ?? (cameras.isNotEmpty ? cameras.first : null);
 
@@ -57,6 +59,7 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> _setupController(CameraDescription cam) async {
+    // 既存controllerを破棄→新しいcontrollerを作る
     final old = _controller;
     _controller = CameraController(
       cam,
@@ -70,7 +73,10 @@ class _CameraPageState extends State<CameraPage> {
       _currentCamera = cam;
     });
 
+    // 古いcontrollerを最後に破棄（順番大事）
     await old?.dispose();
+
+    // 初期化を待ってからUI更新（エラーはFutureBuilder側で出る）
     await future;
     if (mounted) setState(() {});
   }
@@ -82,6 +88,7 @@ class _CameraPageState extends State<CameraPage> {
     final now = _currentCamera;
     if (now == null) return;
 
+    // 反対側を探す（なければ何もしない）
     final targetDir = now.lensDirection == CameraLensDirection.front
         ? CameraLensDirection.back
         : CameraLensDirection.front;
@@ -135,6 +142,7 @@ class _CameraPageState extends State<CameraPage> {
         throw Exception("カメラが初期化されていません");
       }
 
+      // 念のため初期化完了を待つ
       await init;
 
       final file = await ctrl.takePicture();
@@ -155,8 +163,7 @@ class _CameraPageState extends State<CameraPage> {
       if (!mounted) return;
 
       if (uploaded == true) {
-        if (_needGroupShot) setState(() => _needGroupShot = false);
-        await _loadRemaining();
+        await _loadRemaining(); // 送信成功→残り更新（0ならLockPageへ行く）
       }
     } catch (e) {
       if (!mounted) return;
@@ -172,34 +179,23 @@ class _CameraPageState extends State<CameraPage> {
   Widget build(BuildContext context) {
     final ctrl = _controller;
 
-    final w = MediaQuery.of(context).size.width;
-    final h = MediaQuery.of(context).size.height;
-
-    // あなたのUIに近い比率（iPhone 14 っぽい 393x852）
-    // カメラ領域: top=109, height=536（852基準）
-    final cameraTop = h * (109 / 852);
-    final cameraH = h * (536 / 852);
-
-    final shutterTop = h * (667 / 852);
-    final shutterLeft = (w - 81) / 2;
-
-    final switchLeft = w * (305 / 393);
-    final switchTop = h * (685 / 852);
-
-    final textTop = h * (63 / 852);
-    final textLeft = w * (50 / 393);
-    final textW = w * (293 / 393);
-
-    final overlayText = _needGroupShot
-        ? "５人全員が入った写真を撮ってください"
-        : "残り: $_remaining";
-
     return Scaffold(
-      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text("${widget.pageTitle}  残り: $_remaining"),
+        actions: [
+          IconButton(
+            onPressed: (_switching || _taking) ? null : _toggleCamera,
+            icon: Icon(
+              (_currentCamera?.lensDirection == CameraLensDirection.front)
+                  ? Icons.cameraswitch
+                  : Icons.cameraswitch,
+            ),
+            tooltip: "内/外カメラ切替",
+          ),
+        ],
+      ),
       body: (ctrl == null || _initFuture == null)
-          ? const Center(
-              child: Text("カメラが見つかりません", style: TextStyle(color: Colors.white)),
-            )
+          ? const Center(child: Text("カメラが見つかりません"))
           : FutureBuilder<void>(
               future: _initFuture,
               builder: (context, snap) {
@@ -208,15 +204,10 @@ class _CameraPageState extends State<CameraPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snap.hasError) {
-                  return Center(
-                    child: Text(
-                      "カメラ初期化失敗: ${snap.error}",
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                  );
+                  return Center(child: Text("カメラ初期化失敗: ${snap.error}"));
                 }
 
-                return Stack(
+                return Column(
                   children: [
                     // 背景黒（あなたのUIのベース）
                     Positioned.fill(child: Container(color: Colors.black)),
@@ -235,7 +226,7 @@ class _CameraPageState extends State<CameraPage> {
                             height: w / ctrl.value.aspectRatio,
                             child: CameraPreview(ctrl),
                           ),
-                        ),
+                        ],
                       ),
                     ),
 
