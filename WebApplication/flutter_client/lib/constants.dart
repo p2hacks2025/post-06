@@ -1,2 +1,2 @@
-const baseUrl = "https://helps-atm-arrangement-clients.trycloudflare.com";
+const baseUrl = "https://connection-bald-practice-stream.trycloudflare.com";
 const String unlockKey = "OnionSalmon2025";

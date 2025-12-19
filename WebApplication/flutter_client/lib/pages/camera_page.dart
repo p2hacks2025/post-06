@@ -23,7 +23,7 @@ class _CameraPageState extends State<CameraPage> {
   bool _taking = false;
   bool _switching = false;
 
-  // ✅ 最初の1回だけ指示を出す
+  // 最初の1回だけ指示を出す
   bool _needGroupShot = true;
 
   CameraDescription? _currentCamera;
@@ -221,7 +221,7 @@ class _CameraPageState extends State<CameraPage> {
                     // 背景黒（あなたのUIのベース）
                     Positioned.fill(child: Container(color: Colors.black)),
 
-                    // ✅ カメラ表示エリア（あなたのUIの top=109, height=536 相当）
+                    // カメラ表示エリア（あなたのUIの top=109, height=536 相当）
                     Positioned(
                       left: 0,
                       top: cameraTop,
@@ -239,7 +239,7 @@ class _CameraPageState extends State<CameraPage> {
                       ),
                     ),
 
-                    // ✅ 上部テキスト（あなたの Text と同じ見た目）
+                    // 上部テキスト（あなたの Text と同じ見た目）
                     Positioned(
                       left: textLeft,
                       top: textTop,
@@ -258,7 +258,7 @@ class _CameraPageState extends State<CameraPage> {
                       ),
                     ),
 
-                    // ✅ シャッターボタン（二重丸）
+                    // シャッターボタン（二重丸）
                     Positioned(
                       left: shutterLeft,
                       top: shutterTop,
@@ -293,7 +293,7 @@ class _CameraPageState extends State<CameraPage> {
                       ),
                     ),
 
-                    // ✅ 右下のカメラ切替ボタン（あなたの空Container部分を実装）
+                    // 右下のカメラ切替ボタン（あなたの空Container部分を実装）
                     Positioned(
                       left: switchLeft,
                       top: switchTop,
@@ -317,7 +317,7 @@ class _CameraPageState extends State<CameraPage> {
                       ),
                     ),
 
-                    // ✅ 撮影中の簡易表示（任意。いらなければ消してOK）
+                    //　撮影中の簡易表示（任意。いらなければ消してOK）
                     if (_taking)
                       Positioned(
                         left: 0,
