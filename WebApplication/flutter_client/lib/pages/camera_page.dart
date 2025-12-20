@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
@@ -188,9 +188,9 @@ class _CameraPageState extends State<CameraPage> {
     double s(double v) => v * scale;
 
     // あなたのUIに近い比率（iPhone 14 っぽい 393x852）
-    // カメラ領域: top=109, height=536（852基準）
+    // カメラ領域: top=109、アスペクト比 3:4（縦4・横3）
     final cameraTop = h * (109 / 852);
-    final cameraH = h * (536 / 852);
+    final cameraH = w * (4 / 3);
 
     final shutterTop = h * (667 / 852);
     final shutterLeft = (w - s(81)) / 2;
@@ -230,10 +230,10 @@ class _CameraPageState extends State<CameraPage> {
 
                 return Stack(
                   children: [
-                    // 背景黒（あなたのUIのベース）
+                    // 背景黒
                     Positioned.fill(child: Container(color: Colors.black)),
 
-                    // カメラ表示エリア（あなたのUIの top=109, height=536 相当）
+                    // カメラ表示エリア（top=109、アスペクト比 3:4）
                     Positioned(
                       left: 0,
                       top: cameraTop,
@@ -251,7 +251,7 @@ class _CameraPageState extends State<CameraPage> {
                       ),
                     ),
 
-                    // 上部テキスト（あなたの Text と同じ見た目）
+                    // 上部テキスト
                     Positioned(
                       left: textLeft,
                       top: textTop,
@@ -270,7 +270,7 @@ class _CameraPageState extends State<CameraPage> {
                       ),
                     ),
 
-                    // シャッターボタン（二重丸）
+                    // シャッターボタン
                     Positioned(
                       left: shutterLeft,
                       top: shutterTop,
@@ -305,7 +305,7 @@ class _CameraPageState extends State<CameraPage> {
                       ),
                     ),
 
-                    // 右下のカメラ切替ボタン（あなたの空Container部分を実装）
+                    // 右下のカメラ切替ボタン
                     Positioned(
                       left: switchLeft,
                       top: switchTop,
@@ -330,7 +330,7 @@ class _CameraPageState extends State<CameraPage> {
                       ),
                     ),
 
-                    //　撮影中の簡易表示（任意。いらなければ消してOK）
+                    // 撮影中の簡易表示
                     if (_taking)
                       Positioned(
                         left: 0,
