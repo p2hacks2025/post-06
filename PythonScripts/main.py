@@ -38,9 +38,9 @@ engine = create_engine(
 )
 
 # ===== business rules =====
-GOAL = 10                      # カウント対象の枚数
+GOAL = 25                      # カウント対象の枚数
 FREE_FIRST = 1                 # 最初の1枚はノーカウント
-LIMIT_PER_TITLE = GOAL + FREE_FIRST  # DB保存上限（=11）
+LIMIT_PER_TITLE = GOAL + FREE_FIRST  # DB保存上限（=25）
 
 def calc_remaining(total_saved: int) -> int:
     counted = max(0, total_saved - FREE_FIRST)  # 2枚目以降だけ数える
