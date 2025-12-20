@@ -192,11 +192,13 @@ class _CameraPageState extends State<CameraPage> {
     final cameraTop = h * (109 / 852);
     final cameraH = w * (4 / 3);
 
-    final shutterTop = h * (667 / 852);
+    final controlsTop =
+        (cameraTop + cameraH + s(24)).clamp(0.0, h - s(100));
+    final shutterTop = controlsTop;
     final shutterLeft = (w - s(81)) / 2;
 
     final switchLeft = w * (305 / 393);
-    final switchTop = h * (685 / 852);
+    final switchTop = controlsTop + s(8);
 
     final textTop = h * (63 / 852);
     final textLeft = w * (50 / 393);
