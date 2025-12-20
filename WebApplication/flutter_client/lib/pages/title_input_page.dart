@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api.dart';
@@ -51,24 +51,21 @@ class _TitleInputPageState extends State<TitleInputPage> {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final screenSize = media.size;
+    final hasTitle = _controller.text.trim().isNotEmpty;
 
-    /// 元デザイン基準（iPhone16想定）
     const double designWidth = 393.0;
-
-    /// 横幅基準スケール
     const double designHeight = 852.0;
+
     final double scale = math.min(
       screenSize.width / designWidth,
       screenSize.height / designHeight,
     );
     double s(double v) => v * scale;
 
-    /// SafeArea 上部余白
     final double safeTop = media.padding.top;
 
-    /// 元UI top:216 を SafeArea 考慮で補正
     final double extraTop = (screenSize.height - s(designHeight))
-        .clamp(0.0, double.infinity) /
+            .clamp(0.0, double.infinity) /
         2;
     final double correctedTop =
         (s(216) - safeTop + extraTop).clamp(0.0, double.infinity);
@@ -79,10 +76,7 @@ class _TitleInputPageState extends State<TitleInputPage> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              /// 上位置（補正込み）
               SizedBox(height: correctedTop),
-
-              /// ロゴ画像（簡略化）
               Center(
                 child: SizedBox(
                   width: s(286),
@@ -94,17 +88,13 @@ class _TitleInputPageState extends State<TitleInputPage> {
                   ),
                 ),
               ),
-
               SizedBox(height: s(47)),
-
-              /// 入力欄・説明・ボタン
               Center(
                 child: SizedBox(
                   width: s(286),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      /// タイトル入力
                       Container(
                         padding: EdgeInsets.symmetric(horizontal: s(12)),
                         decoration: ShapeDecoration(
@@ -120,6 +110,7 @@ class _TitleInputPageState extends State<TitleInputPage> {
                         child: TextField(
                           controller: _controller,
                           textAlign: TextAlign.left,
+                          onChanged: (_) => setState(() {}),
                           decoration: const InputDecoration(
                             border: InputBorder.none,
                             hintText: 'タイトル',
@@ -138,36 +129,33 @@ class _TitleInputPageState extends State<TitleInputPage> {
                           ),
                         ),
                       ),
-
                       SizedBox(height: s(3)),
-
-                      /// 説明文
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: s(14)),
-                        child: const Text(
-                          '思い出のタイトルを記入してください',
-                          textAlign: TextAlign.left,
-                          style: TextStyle(
-                            color: Color(0xFF989898),
-                            fontSize: 12,
-                            fontFamily: 'Roboto',
-                            fontWeight: FontWeight.w400,
-                            height: 1.66,
-                            letterSpacing: 0.40,
+                      if (!hasTitle)
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: s(14)),
+                          child: const Text(
+                            'タイトルを入力してください',
+                            textAlign: TextAlign.left,
+                            style: TextStyle(
+                              color: Color(0xFFB00020),
+                              fontSize: 12,
+                              fontFamily: 'Roboto',
+                              fontWeight: FontWeight.w400,
+                              height: 1.66,
+                              letterSpacing: 0.40,
+                            ),
                           ),
                         ),
-                      ),
-
                       SizedBox(height: s(47)),
-
-                      /// 完了ボタン
                       GestureDetector(
                         onTap: _next,
                         child: Container(
                           height: s(36),
                           alignment: Alignment.center,
                           decoration: ShapeDecoration(
-                            color: const Color(0xFFBDBDBD),
+                            color: hasTitle
+                                ? const Color(0xFF212121)
+                                : const Color(0xFFBDBDBD),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(s(4)),
                             ),
