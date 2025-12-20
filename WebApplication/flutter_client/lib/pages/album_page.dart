@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../services/api.dart';
@@ -31,8 +32,11 @@ class _AlbumPageState extends State<AlbumPage> {
     super.dispose();
   }
 
-  double s(BuildContext context, double v) =>
-      v * MediaQuery.of(context).size.width / 393;
+  double s(BuildContext context, double v) {
+    final size = MediaQuery.of(context).size;
+    final scale = math.min(size.width / 393, size.height / 852);
+    return v * scale;
+  }
 
   @override
   Widget build(BuildContext context) {

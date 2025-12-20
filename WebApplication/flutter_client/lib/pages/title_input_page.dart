@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api.dart';
@@ -55,14 +56,22 @@ class _TitleInputPageState extends State<TitleInputPage> {
     const double designWidth = 393.0;
 
     /// 横幅基準スケール
-    final double scale = screenSize.width / designWidth;
+    const double designHeight = 852.0;
+    final double scale = math.min(
+      screenSize.width / designWidth,
+      screenSize.height / designHeight,
+    );
     double s(double v) => v * scale;
 
     /// SafeArea 上部余白
     final double safeTop = media.padding.top;
 
     /// 元UI top:216 を SafeArea 考慮で補正
-    final double correctedTop = (s(216) - safeTop).clamp(0.0, double.infinity);
+    final double extraTop = (screenSize.height - s(designHeight))
+        .clamp(0.0, double.infinity) /
+        2;
+    final double correctedTop =
+        (s(216) - safeTop + extraTop).clamp(0.0, double.infinity);
 
     return Scaffold(
       backgroundColor: Colors.white,

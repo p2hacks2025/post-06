@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
@@ -35,6 +36,10 @@ class _LockPageState extends State<LockPage> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final scale = math.min(size.width / 393, size.height / 852);
+    double s(double v) => v * scale;
+
     return Scaffold(
       body: SafeArea(
         top: false,
@@ -48,17 +53,17 @@ class _LockPageState extends State<LockPage> {
               left: 0,
               top: 0,
               right: 0,
-              height: 103,
+              height: s(103),
               child: Container(color: Colors.black),
             ),
 
             // ロゴ（仮：最初の画像を流用）
             Positioned(
-              top: 35,
-              left: (MediaQuery.of(context).size.width - 68) / 2,
+              top: s(35),
+              left: (size.width - s(68)) / 2,
               child: SizedBox(
-                width: 68,
-                height: 68,
+                width: s(68),
+                height: s(68),
                 child: _image != null
                     ? Image.asset('images/logo_square.png', fit: BoxFit.cover)
                     : const SizedBox(),
@@ -67,9 +72,9 @@ class _LockPageState extends State<LockPage> {
 
             // メインコンテンツ
             Positioned(
-              left: 31,
-              right: 31,
-              top: 154,
+              left: s(31),
+              right: s(31),
+              top: s(154),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -123,22 +128,22 @@ class _LockPageState extends State<LockPage> {
                       ),
                     ),
 
-                  const SizedBox(height: 27),
+                  SizedBox(height: s(27)),
 
                   // 画像
                   if (_image != null)
                     SizedBox(
                       width: double.infinity,
-                      height: 441,
+                      height: s(441),
                       child: Image.memory(_image!, fit: BoxFit.cover),
                     ),
 
-                  const SizedBox(height: 27),
+                  SizedBox(height: s(27)),
 
                   // ボタン
                   SizedBox(
                     width: double.infinity,
-                    height: 56,
+                    height: s(56),
                     child: ElevatedButton(
                       onPressed: () => Navigator.push(
                         context,
@@ -150,14 +155,14 @@ class _LockPageState extends State<LockPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF212121),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        elevation: 4,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 22,
-                          vertical: 8,
-                        ),
+                        borderRadius: BorderRadius.circular(s(4)),
                       ),
+                      elevation: 4,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: s(22),
+                        vertical: s(8),
+                      ),
+                    ),
                       child: const Text(
                         '思い出をみんなで振り返る',
                         style: TextStyle(

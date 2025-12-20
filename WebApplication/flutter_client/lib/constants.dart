@@ -1,2 +1,2 @@
-const baseUrl = "https://prisoner-framework-during-game.trycloudflare.com";
+const baseUrl = "https://officer-explicitly-wrist-marijuana.trycloudflare.com";
 const String unlockKey = "OnionSalmon2025";

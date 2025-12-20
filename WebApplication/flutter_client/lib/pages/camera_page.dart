@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
@@ -183,6 +184,8 @@ class _CameraPageState extends State<CameraPage> {
 
     final w = MediaQuery.of(context).size.width;
     final h = MediaQuery.of(context).size.height;
+    final scale = math.min(w / 393, h / 852);
+    double s(double v) => v * scale;
 
     // あなたのUIに近い比率（iPhone 14 っぽい 393x852）
     // カメラ領域: top=109, height=536（852基準）
@@ -190,7 +193,7 @@ class _CameraPageState extends State<CameraPage> {
     final cameraH = h * (536 / 852);
 
     final shutterTop = h * (667 / 852);
-    final shutterLeft = (w - 81) / 2;
+    final shutterLeft = (w - s(81)) / 2;
 
     final switchLeft = w * (305 / 393);
     final switchTop = h * (685 / 852);
@@ -256,13 +259,13 @@ class _CameraPageState extends State<CameraPage> {
                       child: Text(
                         overlayText,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: s(16),
                           fontFamily: 'Roboto',
                           fontWeight: FontWeight.w500,
                           height: 1.50,
-                          letterSpacing: 0.15,
+                          letterSpacing: 0.15 * scale,
                         ),
                       ),
                     ),
@@ -280,18 +283,18 @@ class _CameraPageState extends State<CameraPage> {
                               ? 0.5
                               : 1.0,
                           child: Container(
-                            width: 81,
-                            height: 81,
-                            padding: const EdgeInsets.all(5),
+                            width: s(81),
+                            height: s(81),
+                            padding: EdgeInsets.all(s(5)),
                             decoration: ShapeDecoration(
                               color: const Color(0xFF343434),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(40.5),
+                                borderRadius: BorderRadius.circular(s(40.5)),
                               ),
                             ),
                             child: Container(
-                              width: 71,
-                              height: 71,
+                              width: s(71),
+                              height: s(71),
                               decoration: const ShapeDecoration(
                                 color: Colors.white,
                                 shape: OvalBorder(),
@@ -311,15 +314,16 @@ class _CameraPageState extends State<CameraPage> {
                         child: Opacity(
                           opacity: (_switching || _taking) ? 0.5 : 1.0,
                           child: Container(
-                            width: 45,
-                            height: 45,
+                            width: s(45),
+                            height: s(45),
                             decoration: BoxDecoration(
                               color: Colors.black.withOpacity(0.35),
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(s(12)),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.cameraswitch,
                               color: Colors.white,
+                              size: s(24),
                             ),
                           ),
                         ),
