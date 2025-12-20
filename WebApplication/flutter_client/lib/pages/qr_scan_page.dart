@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../constants.dart';
@@ -16,6 +17,10 @@ class _QrScanPageState extends State<QrScanPage> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final scale = math.min(size.width / 393, size.height / 852);
+    double s(double v) => v * scale;
+
     return Scaffold(
       body: SafeArea(
         top: false,
@@ -26,18 +31,18 @@ class _QrScanPageState extends State<QrScanPage> {
 
             // QRカメラ（背面）
             Positioned(
-              left: 31,
-              right: 31,
-              top: 154,
+              left: s(31),
+              right: s(31),
+              top: s(154),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // カメラ表示
                   SizedBox(
                     width: double.infinity,
-                    height: 445,
+                    height: s(445),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(s(4)),
                       child: MobileScanner(
                         onDetect: (capture) {
                           if (_done) return;
@@ -57,19 +62,19 @@ class _QrScanPageState extends State<QrScanPage> {
                     ),
                   ),
 
-                  const SizedBox(height: 27),
+                  SizedBox(height: s(27)),
 
                   // 説明ボックス
                   Container(
                     width: double.infinity,
-                    height: 173,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 8,
+                    height: s(173),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: s(22),
+                      vertical: s(8),
                     ),
                     decoration: BoxDecoration(
                       color: Colors.black,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(s(4)),
                     ),
                     child: const Center(
                       child: Text(
@@ -95,17 +100,17 @@ class _QrScanPageState extends State<QrScanPage> {
               left: 0,
               top: 0,
               right: 0,
-              height: 103,
+              height: s(103),
               child: Container(color: Colors.black),
             ),
 
             // ロゴ（中央）
             Positioned(
-              top: 35,
-              left: (MediaQuery.of(context).size.width - 68) / 2,
+              top: s(35),
+              left: (size.width - s(68)) / 2,
               child: SizedBox(
-                width: 68,
-                height: 68,
+                width: s(68),
+                height: s(68),
                 child: Image.asset(
                   'images/logo_square.png',
                   fit: BoxFit.cover,
