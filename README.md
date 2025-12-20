@@ -44,7 +44,8 @@ Memet(メメット)
 
 
 ## スクリーンショット(任意)
-ここにはスクリーンショットを貼ります。そのままでもよいですし、画像を編集しておしゃれにしてもよいです(全くの捏造というのはしないでください)。GitHubのエディタに画像をドロップ&ドロップすると張り付きます。
+![S__49037325_0](https://github.com/user-attachments/assets/283803cc-7ac7-407a-b8e9-ca8485b41b72)
+![S__49037326_0](https://github.com/user-attachments/assets/7da8409f-57db-486b-93b1-cc5ff98ea936)
 
 ## 開発体制
 
