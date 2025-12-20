@@ -44,8 +44,10 @@ Memet(メメット)
 
 
 ## スクリーンショット(任意)
-![S__49078276](https://github.com/user-attachments/assets/10a9bb12-130e-4f99-a4e2-f31293a7127f)
-![S__49037326_0](https://github.com/user-attachments/assets/7da8409f-57db-486b-93b1-cc5ff98ea936)
+<img width="816" height="1781" alt="Frame 14" src="https://github.com/user-attachments/assets/424d2297-e07b-43ad-9971-20b8d8243184" />  
+
+![S__49037318_0](https://github.com/user-attachments/assets/c7eca297-bf7f-470b-a9af-2dc4092f37e7)
+
 
 
 ## 開発体制
