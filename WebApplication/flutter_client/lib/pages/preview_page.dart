@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../services/api.dart';
@@ -49,10 +49,12 @@ class _PreviewPageState extends State<PreviewPage> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final viewInsets = MediaQuery.of(context).viewInsets;
     final scale = math.min(size.width / 393, size.height / 852);
     double s(double v) => v * scale;
 
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         top: false,
         child: Stack(
@@ -69,7 +71,7 @@ class _PreviewPageState extends State<PreviewPage> {
               child: Container(color: Colors.black),
             ),
 
-            // ロゴ（仮：画像バイトが無いので placehold 的に Image.memory 使用）
+            // ロゴ
             Positioned(
               top: s(35),
               left: (size.width - s(68)) / 2,
@@ -85,87 +87,91 @@ class _PreviewPageState extends State<PreviewPage> {
               left: s(30),
               right: s(30),
               top: s(154),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 画像プレビュー
-                  SizedBox(
-                    width: double.infinity,
-                    height: s(445),
-                    child: Image.memory(widget.imageBytes, fit: BoxFit.cover),
-                  ),
-
-                  SizedBox(height: s(27)),
-
-                  // コメント入力
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(s(4)),
+              bottom: 0,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(bottom: viewInsets.bottom),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 画像プレビュー
+                    SizedBox(
+                      width: double.infinity,
+                      height: s(445),
+                      child: Image.memory(widget.imageBytes, fit: BoxFit.cover),
                     ),
-                    child: TextField(
-                      controller: _comment,
-                      maxLines: null,
-                      decoration: InputDecoration(
-                        hintText: 'メッセージを入力（任意）',
-                        hintStyle: TextStyle(
-                          color: Colors.black.withOpacity(0.38),
-                          fontSize: 16,
-                          height: 1.5,
-                          letterSpacing: 0.15,
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: s(12),
-                          vertical: s(16),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(s(4)),
-                          borderSide: BorderSide(
-                            color: Colors.black.withOpacity(0.09),
+
+                    SizedBox(height: s(27)),
+
+                    // コメント入力
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF5F5F5),
+                        borderRadius: BorderRadius.circular(s(4)),
+                      ),
+                      child: TextField(
+                        controller: _comment,
+                        maxLines: null,
+                        decoration: InputDecoration(
+                          hintText: 'メッセージを入力（任意）',
+                          hintStyle: TextStyle(
+                            color: Colors.black.withOpacity(0.38),
+                            fontSize: 16,
+                            height: 1.5,
+                            letterSpacing: 0.15,
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: s(12),
+                            vertical: s(16),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(s(4)),
+                            borderSide: BorderSide(
+                              color: Colors.black.withOpacity(0.09),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(s(4)),
+                            borderSide: BorderSide(
+                              color: Colors.black.withOpacity(0.09),
+                            ),
                           ),
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(s(4)),
-                          borderSide: BorderSide(
-                            color: Colors.black.withOpacity(0.09),
+                      ),
+                    ),
+
+                    SizedBox(height: s(27)),
+
+                    // 完了ボタン
+                    SizedBox(
+                      width: double.infinity,
+                      height: s(56),
+                      child: ElevatedButton(
+                        onPressed: _upload,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF212121),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(s(4)),
+                          ),
+                          elevation: 4,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: s(22),
+                            vertical: s(8),
+                          ),
+                        ),
+                        child: const Text(
+                          '完了',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            height: 1.73,
+                            letterSpacing: 0.46,
+                            color: Colors.white,
                           ),
                         ),
                       ),
                     ),
-                  ),
-
-                  SizedBox(height: s(27)),
-
-                  // 完了ボタン
-                  SizedBox(
-                    width: double.infinity,
-                    height: s(56),
-                    child: ElevatedButton(
-                      onPressed: _upload,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF212121),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(s(4)),
-                        ),
-                        elevation: 4,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: s(22),
-                          vertical: s(8),
-                        ),
-                      ),
-                      child: const Text(
-                        '完了',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                          height: 1.73,
-                          letterSpacing: 0.46,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
